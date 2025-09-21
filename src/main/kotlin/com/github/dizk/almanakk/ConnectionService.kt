@@ -3,7 +3,6 @@ package com.github.dizk.almanakk
 import org.springframework.jdbc.datasource.DriverManagerDataSource
 import org.springframework.stereotype.Service
 import java.sql.Connection
-import java.sql.DriverManager
 import java.sql.SQLException
 import javax.sql.DataSource
 
@@ -19,13 +18,10 @@ class ConnectionService {
         }
 
     fun testConnection(config: ConnectionConfig): ConnectionTestResult {
-        val jdbcUrl = config.toJdbcUrl()
-        val properties = config.toProperties()
+        val dataSource = createDataSource(config)
 
         return try {
-            DriverManager.setLoginTimeout(config.connectionTimeout / 1000)
-
-            DriverManager.getConnection(jdbcUrl, properties).use { connection ->
+            dataSource.connection.use { connection ->
                 enforceReadOnly(connection)
                 verifySelectPermissions(connection)
 
@@ -88,23 +84,53 @@ class ConnectionService {
         }
     }
 
-    fun establishConnection(config: ConnectionConfig): Connection {
-        val jdbcUrl = config.toJdbcUrl()
-        val properties = config.toProperties()
-
-        DriverManager.setLoginTimeout(config.connectionTimeout / 1000)
-        val connection = DriverManager.getConnection(jdbcUrl, properties)
-
+    fun testDataSource(dataSource: DataSource): ConnectionTestResult =
         try {
-            enforceReadOnly(connection)
-            verifySelectPermissions(connection)
-        } catch (e: Exception) {
-            connection.close()
-            throw e
-        }
+            dataSource.connection.use { connection ->
+                enforceReadOnly(connection)
+                verifySelectPermissions(connection)
 
-        return connection
-    }
+                ConnectionTestResult(
+                    success = true,
+                    message = "Connection successful",
+                    databaseVersion = connection.metaData.databaseProductVersion,
+                    driverVersion = connection.metaData.driverVersion,
+                )
+            }
+        } catch (e: SQLException) {
+            when (e.sqlState) {
+                "08001", "08003", "08004", "08006" ->
+                    ConnectionTestResult(
+                        success = false,
+                        message = "Cannot connect to database: ${e.message}",
+                        errorCode = e.sqlState,
+                    )
+                "28000", "28P01" ->
+                    ConnectionTestResult(
+                        success = false,
+                        message = "Authentication failed: Invalid username or password",
+                        errorCode = e.sqlState,
+                    )
+                "42501" ->
+                    ConnectionTestResult(
+                        success = false,
+                        message = "Permission denied: User lacks SELECT privileges",
+                        errorCode = e.sqlState,
+                    )
+                else ->
+                    ConnectionTestResult(
+                        success = false,
+                        message = "Database error: ${e.message}",
+                        errorCode = e.sqlState,
+                    )
+            }
+        } catch (e: Exception) {
+            ConnectionTestResult(
+                success = false,
+                message = "Unexpected error: ${e.message}",
+                errorCode = null,
+            )
+        }
 
     private fun enforceReadOnly(connection: Connection) {
         connection.isReadOnly = true
