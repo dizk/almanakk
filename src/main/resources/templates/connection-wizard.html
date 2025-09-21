@@ -20,17 +20,39 @@
                         </p>
 
                         <form id="connectionForm">
-                            <div class="mb-4">
+                            <div class="mb-3">
                                 <label for="jdbcUrl" class="form-label">JDBC Connection URL</label>
                                 <input type="text"
-                                       class="form-control form-control-lg"
+                                       class="form-control"
                                        id="jdbcUrl"
                                        name="jdbcUrl"
-                                       placeholder="jdbc:postgresql://localhost:5432/mydb?user=username&password=password"
+                                       placeholder="jdbc:postgresql://localhost:5432/mydb"
+                                       value=""
                                        required>
                                 <div class="form-text">
-                                    Example: jdbc:postgresql://host:port/database?user=username&password=password
+                                    Example: jdbc:postgresql://host:port/database
                                 </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="username" class="form-label">Username</label>
+                                <input type="text"
+                                       class="form-control"
+                                       id="username"
+                                       name="username"
+                                       placeholder="postgres"
+                                       value=""
+                                       required>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="password" class="form-label">Password</label>
+                                <input type="password"
+                                       class="form-control"
+                                       id="password"
+                                       name="password"
+                                       placeholder="Enter password"
+                                       value="">
                             </div>
 
                             <div id="connectionStatus" class="mb-4">
@@ -43,6 +65,7 @@
                                         id="testConnectionBtn"
                                         hx-post="/test-connection"
                                         hx-trigger="click"
+                                        hx-include="#jdbcUrl, #username, #password"
                                         hx-target="#connectionStatus"
                                         hx-swap="innerHTML"
                                         hx-indicator="#loadingSpinner">
@@ -75,69 +98,12 @@
     </div>
 
     <script>
-        // Handle Test Connection button click
-        document.getElementById('testConnectionBtn').addEventListener('htmx:configRequest', function(event) {
-            const jdbcUrl = document.getElementById('jdbcUrl').value;
-            event.detail.parameters = JSON.stringify({ jdbcUrl: jdbcUrl });
-            event.detail.headers['Content-Type'] = 'application/json';
-        });
-
-        // Handle Test Connection response
-        document.getElementById('testConnectionBtn').addEventListener('htmx:afterRequest', function(event) {
-            const statusDiv = document.getElementById('connectionStatus');
-            const startExploringBtn = document.getElementById('startExploringBtn');
-
-            try {
-                const response = JSON.parse(event.detail.xhr.response);
-
-                if (response.success) {
-                    statusDiv.innerHTML = `
-                        <div class="alert alert-success" role="alert">
-                            <div class="d-flex align-items-center">
-                                <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Success:">
-                                    <use xlink:href="#check-circle-fill"/>
-                                </svg>
-                                <div>
-                                    <strong>Connection successful!</strong><br>
-                                    ${response.message}
-                                    ${response.databaseVersion ? `<br><small>Database: ${response.databaseVersion}</small>` : ''}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    startExploringBtn.disabled = false;
-                } else {
-                    statusDiv.innerHTML = `
-                        <div class="alert alert-danger" role="alert">
-                            <div class="d-flex align-items-center">
-                                <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:">
-                                    <use xlink:href="#exclamation-triangle-fill"/>
-                                </svg>
-                                <div>
-                                    <strong>Connection failed</strong><br>
-                                    ${response.message}
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    startExploringBtn.disabled = true;
-                }
-            } catch (error) {
-                console.error('Error parsing response:', error);
-                statusDiv.innerHTML = `
-                    <div class="alert alert-danger" role="alert">
-                        <div class="d-flex align-items-center">
-                            <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:">
-                                <use xlink:href="#exclamation-triangle-fill"/>
-                            </svg>
-                            <div>
-                                <strong>Connection test failed</strong><br>
-                                Unable to process response from server. Please check your connection string format.
-                            </div>
-                        </div>
-                    </div>
-                `;
-                startExploringBtn.disabled = true;
+        // Enable/disable Start Exploring button based on connection status
+        document.body.addEventListener('htmx:afterSwap', function(event) {
+            if (event.detail.target.id === 'connectionStatus') {
+                const successAlert = event.detail.target.querySelector('.alert-success');
+                const startExploringBtn = document.getElementById('startExploringBtn');
+                startExploringBtn.disabled = !successAlert;
             }
         });
 
@@ -145,13 +111,17 @@
         document.getElementById('connectionForm').addEventListener('submit', function(event) {
             event.preventDefault();
             const jdbcUrl = document.getElementById('jdbcUrl').value;
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            const form = new FormData();
+            form.append('jdbcUrl', jdbcUrl);
+            form.append('username', username);
+            form.append('password', password);
 
             fetch('/start-exploring', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ jdbcUrl: jdbcUrl })
+                body: form
             }).then(response => {
                 if (response.redirected) {
                     window.location.href = response.url;

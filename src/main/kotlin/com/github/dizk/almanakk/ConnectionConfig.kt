@@ -7,7 +7,7 @@ data class ConnectionConfig(
     val username: String,
     val password: String,
     val schema: String? = null,
-    val sslMode: String = "require",
+    val sslMode: String = "disable",
     val connectionTimeout: Int = 5000,
     val readOnly: Boolean = true,
 ) {
@@ -28,8 +28,6 @@ data class ConnectionConfig(
 
     fun toProperties(): java.util.Properties =
         java.util.Properties().apply {
-            setProperty("user", username)
-            setProperty("password", password)
             setProperty("readOnly", readOnly.toString())
         }
 }
