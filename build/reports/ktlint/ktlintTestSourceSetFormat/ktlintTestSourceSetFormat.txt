@@ -1,0 +1,6 @@
+[31m/Users/diz/repos/almanakk/src/test/kotlin/com/github/dizk/almanakk/[0mAlmanakkApplicationTests.kt[31m:[0m8[31m:1:[0m Class body should not start with blank line [31m(standard:no-empty-first-line-in-class-body)[0m
+[31m/Users/diz/repos/almanakk/src/test/kotlin/com/github/dizk/almanakk/[0mAlmanakkApplicationTests.kt[31m:[0m12[31m:1:[0m Unexpected blank line(s) before "}" [31m(standard:no-blank-line-before-rbrace)[0m
+
+Summary error count (descending) by rule:
+  standard:no-blank-line-before-rbrace: 1
+  standard:no-empty-first-line-in-class-body: 1

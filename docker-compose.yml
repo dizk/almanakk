@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: almanakk-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-almanakk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-almanakk_password}
+      POSTGRES_DB: ${POSTGRES_DB:-almanakk_db}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-scripts:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-almanakk}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - almanakk-network
+
+volumes:
+  postgres_data:
+    name: almanakk_postgres_data
+
+networks:
+  almanakk-network:
+    name: almanakk_network
+    driver: bridge
