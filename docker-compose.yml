@@ -12,7 +12,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init-scripts:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-almanakk}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-almanakk} -d ${POSTGRES_DB:-almanakk_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
