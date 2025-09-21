@@ -84,27 +84,46 @@
 
         // Handle Test Connection response
         document.getElementById('testConnectionBtn').addEventListener('htmx:afterRequest', function(event) {
-            const response = JSON.parse(event.detail.xhr.response);
             const statusDiv = document.getElementById('connectionStatus');
             const startExploringBtn = document.getElementById('startExploringBtn');
 
-            if (response.success) {
-                statusDiv.innerHTML = `
-                    <div class="alert alert-success" role="alert">
-                        <div class="d-flex align-items-center">
-                            <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Success:">
-                                <use xlink:href="#check-circle-fill"/>
-                            </svg>
-                            <div>
-                                <strong>Connection successful!</strong><br>
-                                ${response.message}
-                                ${response.databaseVersion ? `<br><small>Database: ${response.databaseVersion}</small>` : ''}
+            try {
+                const response = JSON.parse(event.detail.xhr.response);
+
+                if (response.success) {
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-success" role="alert">
+                            <div class="d-flex align-items-center">
+                                <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Success:">
+                                    <use xlink:href="#check-circle-fill"/>
+                                </svg>
+                                <div>
+                                    <strong>Connection successful!</strong><br>
+                                    ${response.message}
+                                    ${response.databaseVersion ? `<br><small>Database: ${response.databaseVersion}</small>` : ''}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
-                startExploringBtn.disabled = false;
-            } else {
+                    `;
+                    startExploringBtn.disabled = false;
+                } else {
+                    statusDiv.innerHTML = `
+                        <div class="alert alert-danger" role="alert">
+                            <div class="d-flex align-items-center">
+                                <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:">
+                                    <use xlink:href="#exclamation-triangle-fill"/>
+                                </svg>
+                                <div>
+                                    <strong>Connection failed</strong><br>
+                                    ${response.message}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    startExploringBtn.disabled = true;
+                }
+            } catch (error) {
+                console.error('Error parsing response:', error);
                 statusDiv.innerHTML = `
                     <div class="alert alert-danger" role="alert">
                         <div class="d-flex align-items-center">
@@ -112,8 +131,8 @@
                                 <use xlink:href="#exclamation-triangle-fill"/>
                             </svg>
                             <div>
-                                <strong>Connection failed</strong><br>
-                                ${response.message}
+                                <strong>Connection test failed</strong><br>
+                                Unable to process response from server. Please check your connection string format.
                             </div>
                         </div>
                     </div>

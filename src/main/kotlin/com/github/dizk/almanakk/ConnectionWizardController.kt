@@ -1,5 +1,6 @@
 package com.github.dizk.almanakk
 
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
@@ -18,33 +19,42 @@ class ConnectionWizardController(
         return "connection-wizard"
     }
 
-    @PostMapping("/test-connection")
+    @PostMapping("/test-connection", consumes = [MediaType.APPLICATION_JSON_VALUE], produces = [MediaType.APPLICATION_JSON_VALUE])
     @ResponseBody
     fun testConnection(
         @RequestBody connectionForm: ConnectionForm,
     ): ResponseEntity<ConnectionTestResponse> {
-        val validationResult = connectionService.validateConnectionString(connectionForm.jdbcUrl)
+        return try {
+            val validationResult = connectionService.validateConnectionString(connectionForm.jdbcUrl)
 
-        if (!validationResult.valid) {
-            return ResponseEntity.ok(
+            if (!validationResult.valid) {
+                return ResponseEntity.ok(
+                    ConnectionTestResponse(
+                        success = false,
+                        message = validationResult.message,
+                    ),
+                )
+            }
+
+            val config = parseJdbcUrl(connectionForm.jdbcUrl)
+            val testResult = connectionService.testConnection(config)
+
+            ResponseEntity.ok(
+                ConnectionTestResponse(
+                    success = testResult.success,
+                    message = testResult.message,
+                    databaseVersion = testResult.databaseVersion,
+                    driverVersion = testResult.driverVersion,
+                ),
+            )
+        } catch (e: Exception) {
+            ResponseEntity.ok(
                 ConnectionTestResponse(
                     success = false,
-                    message = validationResult.message,
+                    message = "Error parsing connection URL: ${e.message}",
                 ),
             )
         }
-
-        val config = parseJdbcUrl(connectionForm.jdbcUrl)
-        val testResult = connectionService.testConnection(config)
-
-        return ResponseEntity.ok(
-            ConnectionTestResponse(
-                success = testResult.success,
-                message = testResult.message,
-                databaseVersion = testResult.databaseVersion,
-                driverVersion = testResult.driverVersion,
-            ),
-        )
     }
 
     @PostMapping("/start-exploring")
