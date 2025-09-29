@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <!-- Success Alert Fragment -->
+    <div th:fragment="success(message, details)" class="alert alert-success" role="alert">
+        <div class="d-flex align-items-center">
+            <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Success:">
+                <use xlink:href="#check-circle-fill"/>
+            </svg>
+            <div>
+                <strong th:text="${message}">Success</strong><br>
+                <span th:text="${details}"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Danger Alert Fragment -->
+    <div th:fragment="danger(message, details)" class="alert alert-danger" role="alert">
+        <div class="d-flex align-items-center">
+            <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:">
+                <use xlink:href="#exclamation-triangle-fill"/>
+            </svg>
+            <div>
+                <strong th:text="${message}">Error</strong><br>
+                <span th:text="${details}"></span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -25,7 +25,6 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     background-color: var(--bg-primary);
-    transition: box-shadow 0.2s ease;
 }
 
 .card:hover {
@@ -37,7 +36,6 @@ body {
     border-radius: 6px;
     padding: 0.625rem 0.875rem;
     font-size: 0.95rem;
-    transition: all 0.2s ease;
 }
 
 .form-control:focus, .form-select:focus {
@@ -54,7 +52,6 @@ body {
 .btn {
     border-radius: 6px;
     font-weight: 500;
-    transition: all 0.2s ease;
     padding: 0.625rem 1.25rem;
 }
 
@@ -136,9 +133,12 @@ h1, h2, h3, h4, h5, h6 {
     border-width: 0.15em;
 }
 
-/* Smooth transitions */
-* {
-    transition: background-color 0.2s ease, border-color 0.2s ease;
+/* Smooth transitions for interactive elements */
+.btn,
+.form-control,
+.form-select,
+.card {
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 /* Form validation states */

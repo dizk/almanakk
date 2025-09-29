@@ -4,7 +4,6 @@ import org.springframework.stereotype.Controller
 import org.springframework.ui.Model
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.ResponseBody
 
 @Controller
 class ConnectionWizardController(
@@ -17,76 +16,49 @@ class ConnectionWizardController(
     }
 
     @PostMapping("/test-connection")
-    @ResponseBody
     fun testConnection(
         connectionForm: ConnectionForm,
+        model: Model,
     ): String {
-        return try {
+        try {
             val validationResult = connectionService.validateConnectionString(connectionForm.jdbcUrl)
 
             if (!validationResult.valid) {
-                return """
-                    <div class="alert alert-danger" role="alert">
-                        <div class="d-flex align-items-center">
-                            <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:">
-                                <use xlink:href="#exclamation-triangle-fill"/>
-                            </svg>
-                            <div>
-                                <strong>Connection failed</strong><br>
-                                ${validationResult.message}
-                            </div>
-                        </div>
-                    </div>
-                """.trimIndent()
+                model.addAttribute("alertType", "danger")
+                model.addAttribute("alertMessage", "Connection failed")
+                model.addAttribute("alertDetails", validationResult.message)
+                return "fragments/alerts :: danger(message=${model.getAttribute(
+                    "alertMessage",
+                )}, details=${model.getAttribute("alertDetails")})"
             }
 
             val config = parseJdbcUrl(connectionForm.jdbcUrl, connectionForm.username, connectionForm.password)
             val testResult = connectionService.testConnection(config)
 
             if (testResult.success) {
-                """
-                    <div class="alert alert-success" role="alert">
-                        <div class="d-flex align-items-center">
-                            <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Success:">
-                                <use xlink:href="#check-circle-fill"/>
-                            </svg>
-                            <div>
-                                <strong>Connection successful!</strong><br>
-                                ${testResult.message}
-                                ${testResult.databaseVersion?.let { "<br><small>Database: $it</small>" } ?: ""}
-                            </div>
-                        </div>
-                    </div>
-                """.trimIndent()
+                val details =
+                    buildString {
+                        append(testResult.message)
+                        testResult.databaseVersion?.let { append("<br><small>Database: $it</small>") }
+                    }
+                model.addAttribute("alertMessage", "Connection successful!")
+                model.addAttribute("alertDetails", details)
+                return "fragments/alerts :: success(message=${model.getAttribute(
+                    "alertMessage",
+                )}, details=${model.getAttribute("alertDetails")})"
             } else {
-                """
-                    <div class="alert alert-danger" role="alert">
-                        <div class="d-flex align-items-center">
-                            <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:">
-                                <use xlink:href="#exclamation-triangle-fill"/>
-                            </svg>
-                            <div>
-                                <strong>Connection failed</strong><br>
-                                ${testResult.message}
-                            </div>
-                        </div>
-                    </div>
-                """.trimIndent()
+                model.addAttribute("alertMessage", "Connection failed")
+                model.addAttribute("alertDetails", testResult.message)
+                return "fragments/alerts :: danger(message=${model.getAttribute(
+                    "alertMessage",
+                )}, details=${model.getAttribute("alertDetails")})"
             }
         } catch (e: Exception) {
-            """
-                <div class="alert alert-danger" role="alert">
-                    <div class="d-flex align-items-center">
-                        <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:">
-                            <use xlink:href="#exclamation-triangle-fill"/>
-                        </svg>
-                        <div>
-                            <strong>Connection failed</strong><br>
-                            Error parsing connection URL: ${e.message}
-                        </div>
-                    </div>
-                </div>
-            """.trimIndent()
+            model.addAttribute("alertMessage", "Connection failed")
+            model.addAttribute("alertDetails", "Error parsing connection URL: ${e.message}")
+            return "fragments/alerts :: danger(message=${model.getAttribute(
+                "alertMessage",
+            )}, details=${model.getAttribute("alertDetails")})"
         }
     }
 
@@ -95,51 +67,104 @@ class ConnectionWizardController(
         connectionForm: ConnectionForm,
         model: Model,
     ): String {
-        val config = parseJdbcUrl(connectionForm.jdbcUrl, connectionForm.username, connectionForm.password)
-        return "redirect:/tables"
+        return try {
+            val validationResult = connectionService.validateConnectionString(connectionForm.jdbcUrl)
+            if (!validationResult.valid) {
+                model.addAttribute("error", validationResult.message)
+                model.addAttribute("connectionForm", connectionForm)
+                return "connection-wizard"
+            }
+
+            val config = parseJdbcUrl(connectionForm.jdbcUrl, connectionForm.username, connectionForm.password)
+            val testResult = connectionService.testConnection(config)
+
+            if (!testResult.success) {
+                model.addAttribute("error", testResult.message)
+                model.addAttribute("connectionForm", connectionForm)
+                return "connection-wizard"
+            }
+
+            "redirect:/tables"
+        } catch (e: Exception) {
+            model.addAttribute("error", "Error: ${e.message}")
+            model.addAttribute("connectionForm", connectionForm)
+            "connection-wizard"
+        }
     }
 
-    private fun parseJdbcUrl(jdbcUrl: String, username: String, password: String): ConnectionConfig {
-        val regex = Regex("""^jdbc:postgresql://([^:/]+)(?::(\d+))?/([^?]+)(?:\?(.*))?$""")
-        val match =
-            regex.find(jdbcUrl)
-                ?: throw IllegalArgumentException("Invalid JDBC URL format")
+    private fun parseJdbcUrl(
+        jdbcUrl: String,
+        username: String,
+        password: String,
+    ): ConnectionConfig {
+        val parsed = parseJdbcUrlString(jdbcUrl)
+        return buildConnectionConfig(parsed, username, password)
+    }
 
-        val host = match.groupValues[1]
-        val port = match.groupValues[2].toIntOrNull() ?: 5432
-        val database = match.groupValues[3]
-        val params = match.groupValues[4]
+    private fun parseJdbcUrlString(jdbcUrl: String): ParsedJdbcUrl {
+        val postgresRegex = Regex("""^jdbc:postgresql://([^:/]+)(?::(\d+))?/([^?]+)(?:\?(.*))?$""")
+        val mysqlRegex = Regex("""^jdbc:mysql://([^:/]+)(?::(\d+))?/([^?]+)(?:\?(.*))?$""")
 
-        var schema: String? = null
-        var sslMode = "disable"
-
-        if (params.isNotEmpty()) {
-            params.split("&").forEach { param ->
-                val parts = param.split("=", limit = 2)
-                if (parts.size == 2) {
-                    val (key, value) = parts
-                    when (key) {
-                        "currentSchema" -> schema = value
-                        "sslmode" -> sslMode = value
-                    }
-                }
+        val (match, dbType, defaultPort) =
+            when {
+                postgresRegex.matches(jdbcUrl) -> Triple(postgresRegex.find(jdbcUrl), DatabaseType.POSTGRESQL, 5432)
+                mysqlRegex.matches(jdbcUrl) -> Triple(mysqlRegex.find(jdbcUrl), DatabaseType.MYSQL, 3306)
+                else -> throw IllegalArgumentException("Unsupported JDBC URL format. Only PostgreSQL and MySQL are supported.")
             }
-        }
 
-        return ConnectionConfig(
-            host = host,
-            port = port,
-            database = database,
-            username = username,
-            password = password,
-            schema = schema,
-            sslMode = sslMode,
+        match ?: throw IllegalArgumentException("Invalid JDBC URL format")
+
+        return ParsedJdbcUrl(
+            host = match.groupValues[1],
+            port = match.groupValues[2].toIntOrNull() ?: defaultPort,
+            database = match.groupValues[3],
+            params = parseQueryParams(match.groupValues[4]),
+            databaseType = dbType,
         )
     }
+
+    private fun parseQueryParams(queryString: String): Map<String, String> {
+        if (queryString.isEmpty()) return emptyMap()
+
+        return queryString
+            .split("&")
+            .mapNotNull { param ->
+                val parts = param.split("=", limit = 2)
+                if (parts.size == 2) parts[0] to parts[1] else null
+            }.toMap()
+    }
+
+    private fun buildConnectionConfig(
+        parsed: ParsedJdbcUrl,
+        username: String,
+        password: String,
+    ): ConnectionConfig =
+        ConnectionConfig(
+            host = parsed.host,
+            port = parsed.port,
+            database = parsed.database,
+            username = username,
+            password = password,
+            schema = parsed.params["currentSchema"],
+            sslMode = parsed.params["sslmode"] ?: "require",
+        )
+}
+
+data class ParsedJdbcUrl(
+    val host: String,
+    val port: Int,
+    val database: String,
+    val params: Map<String, String>,
+    val databaseType: DatabaseType,
+)
+
+enum class DatabaseType {
+    POSTGRESQL,
+    MYSQL,
 }
 
 data class ConnectionForm(
-    var jdbcUrl: String = "",
-    var username: String = "",
-    var password: String = "",
+    val jdbcUrl: String = "",
+    val username: String = "",
+    val password: String = "",
 )
